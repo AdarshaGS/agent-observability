@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Token Observatory</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f3f3f1; --surface-1: #fcfcfb; --surface-2: #f0efec; --border: #e2e1dc; --grid: #e8e7e3;
+  --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #7a7973; --accent: #2a78d6;
+  --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100;
+  --series-5: #e87ba4; --series-6: #008300; --series-7: #4a3aa7;
+  --warn: #c98500; --crit: #c23b3a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #121211; --surface-1: #1a1a19; --surface-2: #262625; --border: #34342f; --grid: #2b2b28;
+    --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8f8e85; --accent: #3987e5;
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500;
+    --series-5: #d55181; --series-6: #008300; --series-7: #9085e9; --warn: #e0a020; --crit: #e66767;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #121211; --surface-1: #1a1a19; --surface-2: #262625; --border: #34342f; --grid: #2b2b28;
+  --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8f8e85; --accent: #3987e5;
+  --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500;
+  --series-5: #d55181; --series-6: #008300; --series-7: #9085e9; --warn: #e0a020; --crit: #e66767;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--text-primary);
+  font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif; }
+header { position: sticky; top: 0; z-index: 5; background: var(--surface-1); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 16px; padding: 10px 16px; flex-wrap: wrap; }
+header h1 { font-size: 15px; margin: 0; font-weight: 650; letter-spacing: .01em; }
+nav a { color: var(--text-secondary); text-decoration: none; padding: 6px 10px; border-radius: 6px; }
+nav a.on { background: var(--surface-2); color: var(--text-primary); font-weight: 600; }
+.spacer { flex: 1; }
+header label, header button { font-size: 12px; color: var(--text-secondary); }
+button { background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 5px 9px;
+  color: var(--text-primary); cursor: pointer; font: inherit; font-size: 12px; }
+main { max-width: 1240px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
+.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; min-width: 0; }
+.card h2 { margin: 0 0 2px; font-size: 14px; font-weight: 650; }
+.card .sub { color: var(--text-secondary); font-size: 12px; margin-bottom: 10px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.kpi { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+.kpi .v { font-size: 24px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.kpi .l { color: var(--text-secondary); font-size: 12px; }
+.kpi .n { color: var(--text-muted); font-size: 11px; margin-top: 2px; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 16px; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+th { color: var(--text-secondary); font-weight: 600; font-size: 12px; cursor: default; }
+th.s { cursor: pointer; } th.s:hover { color: var(--text-primary); }
+td.num, th.num { text-align: right; }
+tr.click { cursor: pointer; } tr.click:hover td { background: var(--surface-2); }
+.scroll { overflow-x: auto; }
+.badge { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 11px; border: 1px solid var(--border);
+  background: var(--surface-2); color: var(--text-secondary); }
+.badge.bad { color: var(--crit); border-color: var(--crit); }
+.badge.warn { color: var(--warn); border-color: var(--warn); }
+.badge.ok { color: var(--text-primary); }
+.muted { color: var(--text-muted); } .sec { color: var(--text-secondary); }
+.barrow { display: grid; grid-template-columns: minmax(120px, 190px) 1fr 200px; gap: 10px; align-items: center; padding: 3px 0; }
+.bar { height: 10px; background: var(--surface-2); border-radius: 5px; overflow: hidden; }
+.bar > i { display: block; height: 100%; background: var(--series-1); border-radius: 5px; }
+.gauge { position: relative; height: 14px; background: var(--surface-2); border-radius: 7px; margin: 22px 0 6px; }
+.gauge > i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--series-1); border-radius: 7px; }
+.gauge > b { position: absolute; top: -18px; transform: translateX(-50%); font-size: 10px; font-weight: 500; color: var(--text-muted); }
+.gauge > u { position: absolute; top: -4px; bottom: -4px; width: 0; border-left: 1.5px dashed var(--text-muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--text-secondary); margin: 6px 0 2px; }
+.legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px;
+  background: var(--c); vertical-align: -1px; }
+svg text { fill: var(--text-secondary); font-size: 11px; font-family: inherit; }
+svg .grid { stroke: var(--grid); stroke-width: 1; }
+#tip { position: fixed; pointer-events: none; z-index: 20; background: var(--surface-1); color: var(--text-primary);
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.18);
+  display: none; max-width: 320px; }
+#tip .r { display: flex; justify-content: space-between; gap: 14px; } #tip .h { font-weight: 650; margin-bottom: 3px; }
+details summary { cursor: pointer; color: var(--text-secondary); }
+pre { background: var(--surface-2); padding: 10px; border-radius: 8px; overflow: auto; font-size: 12px; }
+.find { border-top: 1px solid var(--border); padding: 8px 0; }
+.find:first-child { border-top: 0; }
+.find .top { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.find .why { margin: 4px 0 0; color: var(--text-secondary); font-size: 13px; }
+.empty { padding: 40px 16px; text-align: center; color: var(--text-secondary); }
+@media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } .barrow { grid-template-columns: 1fr 90px; } .barrow .bar { display: none; } }
+#range { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; }
+#range select, #range input { background: var(--surface-2); color: var(--text-primary); border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; font: inherit; }
+#range [hidden] { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Token Observatory</h1>
+  <nav><a href="#/" id="nav-over">Overview</a><a href="#/sessions" id="nav-sess">Sessions</a><a href="#/compare" id="nav-cmp">Compare</a></nav>
+  <span class="spacer"></span>
+  <div id="range" role="group" aria-label="Date filter">
+    <select id="period" aria-label="Period"><option value="all">All time</option><option value="day">Day</option><option value="week">Week</option><option value="month">Month</option><option value="custom">Custom</option></select>
+    <button id="prev" title="Previous" aria-label="Previous period">‹</button>
+    <input type="date" id="d1" aria-label="From"><span id="dto">to</span><input type="date" id="d2" aria-label="To (inclusive)">
+    <button id="next" title="Next" aria-label="Next period">›</button>
+    <button id="today" title="Jump to the current period">Now</button>
+    <span id="rlabel" class="muted"></span>
+  </div>
+  <label><input type="checkbox" id="live"> Live (5s)</label>
+  <button id="theme" title="Toggle theme">Theme: auto</button>
+</header>
+<main id="app"><div class="empty">Loading…</div></main>
+<div id="tip"></div>
+
+<script>
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const fmt = n => n == null ? "–" : Math.abs(n) >= 1e6 ? (n / 1e6).toFixed(2) + "M" : Math.abs(n) >= 1e3 ? (n / 1e3).toFixed(1) + "k" : String(Math.round(n));
+const int = n => n == null ? "–" : Math.round(n).toLocaleString();
+const pct = (x, d = 0) => x == null ? "–" : (x * 100).toFixed(x > 0 && x < 0.01 ? 1 : d) + "%";
+const usd = x => x == null ? "–" : "$" + (Math.abs(x) < 1 ? x.toFixed(4) : x.toFixed(2));
+const when = t => t ? new Date(t * 1000).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "–";
+const KINDS = ["system", "tool_schema", "user", "history", "retrieval", "tool_result", "agent_state"];
+const KIND_COLOR = Object.fromEntries(KINDS.map((k, i) => [k, `var(--series-${i + 1})`]));
+const RISK_MARK = { low: "● low", medium: "▲ medium", high: "◆ high" };
+const state = { sort: { key: "started_at", dir: -1 }, timer: null, period: "all", anchor: new Date(), from: null, to: null };
+
+// ---------------------------------------------------------------- date filter (browser-local time; window is [since, until))
+const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const parseYmd = v => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || ""); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null; };
+function bounds() {
+  const a = startOfDay(state.anchor);
+  if (state.period === "day") return [a, addDays(a, 1)];
+  if (state.period === "week") { const s = addDays(a, -((a.getDay() + 6) % 7)); return [s, addDays(s, 7)]; }   // Monday-start
+  if (state.period === "month") return [new Date(a.getFullYear(), a.getMonth(), 1), new Date(a.getFullYear(), a.getMonth() + 1, 1)];
+  if (state.period === "custom") {
+    const f = state.from && parseYmd(state.from), t = state.to && parseYmd(state.to);
+    return [f || null, t ? addDays(t, 1) : null];
+  }
+  return [null, null];
+}
+function qs() {
+  const [a, b] = bounds(), q = [];
+  if (a) q.push("since=" + a.getTime() / 1000);
+  if (b) q.push("until=" + b.getTime() / 1000);
+  return q.length ? "?" + q.join("&") : "";
+}
+function rangeLabel() {
+  const [a, b] = bounds(), f = d => d.toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" });
+  if (!a && !b) return state.period === "all" ? "" : "open range";
+  if (state.period === "day") return f(a);
+  if (state.period === "month") return a.toLocaleDateString([], { year: "numeric", month: "long" });
+  return `${a ? f(a) : "…"} – ${b ? f(addDays(b, -1)) : "…"}`;
+}
+function saveRange() { try { sessionStorage.setItem("obs_range", JSON.stringify({ p: state.period, a: +state.anchor, f: state.from, t: state.to })); } catch (e) { } }
+function syncRangeUi() {
+  const p = state.period, nav = p === "day" || p === "week" || p === "month";
+  $("#period").value = p;
+  $("#prev").hidden = $("#next").hidden = $("#today").hidden = !nav;
+  $("#d1").hidden = $("#d2").hidden = $("#dto").hidden = p !== "custom";
+  $("#d1").value = state.from || ""; $("#d2").value = state.to || "";
+  $("#rlabel").textContent = rangeLabel();
+}
+function step(dir) {
+  const a = state.anchor, p = state.period;
+  state.anchor = p === "day" ? addDays(a, dir) : p === "week" ? addDays(a, 7 * dir) : new Date(a.getFullYear(), a.getMonth() + dir, 1);
+}
+function setPeriod(p) {
+  if (p === "custom" && !state.from && !state.to) { const [a, b] = bounds(); if (a) { state.from = ymd(a); state.to = ymd(addDays(b, -1)); } }
+  state.period = p; saveRange(); syncRangeUi(); render();
+}
+$("#period").onchange = e => setPeriod(e.target.value);
+$("#prev").onclick = () => { step(-1); saveRange(); syncRangeUi(); render(); };
+$("#next").onclick = () => { step(1); saveRange(); syncRangeUi(); render(); };
+$("#today").onclick = () => { state.anchor = new Date(); saveRange(); syncRangeUi(); render(); };
+$("#d1").onchange = e => { state.from = e.target.value || null; saveRange(); syncRangeUi(); render(); };
+$("#d2").onchange = e => { state.to = e.target.value || null; saveRange(); syncRangeUi(); render(); };
+try { const r = JSON.parse(sessionStorage.getItem("obs_range") || "null"); if (r) { state.period = r.p; state.anchor = new Date(r.a); state.from = r.f; state.to = r.t; } } catch (e) { }
+
+
+// ---------------------------------------------------------------- data
+function tok() { try { return sessionStorage.getItem('obs_token') || ''; } catch (e) { return ''; } }
+async function api(p) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const t = tok();
+    const r = await fetch(p, t ? { headers: { Authorization: 'Bearer ' + t } } : {});
+    if (r.status === 401 || r.status === 403) {
+      const v = window.prompt('This server requires an access token (read scope):', '');
+      if (!v) throw new Error('access token required');
+      try { sessionStorage.setItem('obs_token', v.trim()); } catch (e) {}
+      continue;
+    }
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.status);
+    return r.json();
+  }
+  throw new Error('access denied');
+}
+
+// ---------------------------------------------------------------- tooltip
+const tip = $("#tip");
+function showTip(ev, html) {
+  tip.innerHTML = html; tip.style.display = "block";
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  tip.style.left = Math.min(ev.clientX + 14, innerWidth - w - 8) + "px";
+  tip.style.top = Math.min(ev.clientY + 14, innerHeight - h - 8) + "px";
+}
+const hideTip = () => tip.style.display = "none";
+function bindTips(root) {
+  root.querySelectorAll("[data-tip]").forEach(el => {
+    el.addEventListener("mousemove", e => showTip(e, el.dataset.tip));
+    el.addEventListener("mouseleave", hideTip);
+  });
+}
+
+// ---------------------------------------------------------------- charts
+function niceMax(v) { if (v <= 0) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))); const f = v / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p; }
+
+function stacked(cats, series, { height = 250, ytitle = "tokens" } = {}) {
+  const W = 860, H = height, m = { l: 48, r: 12, t: 10, b: 28 }, pw = W - m.l - m.r, ph = H - m.t - m.b;
+  const totals = cats.map((_, i) => series.reduce((s, x) => s + (x.values[i] || 0), 0));
+  const max = niceMax(Math.max(...totals, 1)), bw = Math.min(46, pw / cats.length * 0.72), step = pw / cats.length;
+  let g = "";
+  for (let i = 0; i <= 4; i++) {
+    const y = m.t + ph - ph * i / 4;
+    g += `<line class="grid" x1="${m.l}" x2="${W - m.r}" y1="${y}" y2="${y}"/><text x="${m.l - 6}" y="${y + 4}" text-anchor="end">${fmt(max * i / 4)}</text>`;
+  }
+  cats.forEach((c, i) => {
+    const x = m.l + step * i + (step - bw) / 2; let y = m.t + ph;
+    const rows = series.filter(s => s.values[i]).map(s => `<div class="r"><span>${esc(s.label)}</span><b>${int(s.values[i])}</b></div>`).join("");
+    const tp = `<div class="h">${esc(c)}</div>${rows}<div class="r"><span>total</span><b>${int(totals[i])}</b></div>`;
+    g += `<g data-tip='${tp.replace(/'/g, "&#39;")}'><rect x="${m.l + step * i}" y="${m.t}" width="${step}" height="${ph}" fill="transparent"/>`;
+    series.forEach(s => {
+      const v = s.values[i] || 0; if (!v) return;
+      const h = v / max * ph; y -= h;
+      g += `<rect x="${x}" y="${y}" width="${bw}" height="${Math.max(h, 0.5)}" fill="${s.color}" stroke="var(--surface-1)" stroke-width="2"/>`;
+    });
+    g += `</g>`;
+    if (cats.length <= 24 || i % Math.ceil(cats.length / 24) === 0) g += `<text x="${x + bw / 2}" y="${H - 8}" text-anchor="middle">${esc(c.length > 6 ? c.slice(0, 6) : c)}</text>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Stacked bars of ${esc(ytitle)}">${g}</svg>`;
+}
+
+function lineChart(points, hlines, { height = 240, limit } = {}) {
+  const W = 860, H = height, m = { l: 48, r: 96, t: 12, b: 28 }, pw = W - m.l - m.r, ph = H - m.t - m.b;
+  const ymax = limit ? limit * 1.02 : niceMax(Math.max(...points.map(p => p.y), 1)), X = i => m.l + (points.length > 1 ? pw * i / (points.length - 1) : pw / 2), Y = v => m.t + ph - v / ymax * ph;
+  let g = "";
+  for (let i = 0; i <= 4; i++) { const y = m.t + ph - ph * i / 4; g += `<line class="grid" x1="${m.l}" x2="${W - m.r}" y1="${y}" y2="${y}"/><text x="${m.l - 6}" y="${y + 4}" text-anchor="end">${fmt(ymax * i / 4)}</text>`; }
+  hlines.forEach(h => { const y = Y(h.y); g += `<line x1="${m.l}" x2="${W - m.r}" y1="${y}" y2="${y}" stroke="${h.color || "var(--text-muted)"}" stroke-dasharray="${h.solid ? "" : "4 4"}" stroke-width="1.2"/><text x="${W - m.r + 6}" y="${y + 4}">${esc(h.label)}</text>`; });
+  if (points.length) g += `<polyline fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" points="${points.map((p, i) => X(i) + "," + Y(p.y)).join(" ")}"/>`;
+  points.forEach((p, i) => {
+    g += `<g data-tip='${p.tip.replace(/'/g, "&#39;")}'><rect x="${X(i) - 12}" y="${m.t}" width="24" height="${ph}" fill="transparent"/><circle cx="${X(i)}" cy="${Y(p.y)}" r="4" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/></g>`;
+    if (points.length <= 24 || i % Math.ceil(points.length / 24) === 0) g += `<text x="${X(i)}" y="${H - 8}" text-anchor="middle">${esc(p.x)}</text>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Cumulative tokens against budget">${g}</svg>`;
+}
+
+const legend = ks => `<div class="legend">${ks.map(k => `<span style="--c:${KIND_COLOR[k]}">${k}</span>`).join("")}</div>`;
+const tile = (v, l, n = "") => `<div class="kpi"><div class="v">${v}</div><div class="l">${l}</div>${n ? `<div class="n">${n}</div>` : ""}</div>`;
+function barList(rows, { fmtv = fmt } = {}) {
+  const max = Math.max(...rows.map(r => r.value), 1);
+  return rows.map(r => `<div class="barrow" ${r.tip ? `data-tip='${r.tip.replace(/'/g, "&#39;")}'` : ""}><span>${esc(r.label)}</span><div class="bar"><i style="width:${r.value / max * 100}%"></i></div><span class="sec" style="text-align:right">${fmtv(r.value)}${r.extra ? ` · ${r.extra}` : ""}</span></div>`).join("");
+}
+function statusBadge(s) { const c = s === "completed" ? "ok" : s === "budget_exhausted" ? "bad" : s === "failed" ? "warn" : ""; return `<span class="badge ${c}">${esc(s || "open")}</span>`; }
+
+// ---------------------------------------------------------------- overview
+async function compareView() {
+  const c = await api("/api/compare");
+  if (!c.cohorts.length) return `<div class="card empty">No cohorts tagged yet. Run <code>python3 -m agent_observability compare-tag --db ledger.db --cohort ID --arm with_agents|inline --label TEXT --units N --sessions ROOT_SESSION_ID</code>.</div>`;
+  const A = c.arms.with_agents, B = c.arms.inline, d = c.delta_agents_vs_inline || {};
+  const dl = v => v == null ? "n/a" : (v > 0 ? "+" : "") + (v * 100).toFixed(0) + "% vs inline";
+  const row = (lab, k, f) => `<tr><td>${lab}</td><td class="num">${A.per_unit ? f(A.per_unit[k]) : "n/a"}</td><td class="num">${B.per_unit ? f(B.per_unit[k]) : "n/a"}</td><td class="num">${dl(d[k])}</td></tr>`;
+  return `
+  <div class="kpis">
+    ${tile(A.per_unit ? usd(A.per_unit.est_cost) : "n/a", "With agents, per " + esc(c.cohorts[0].unit_label), dl(d.est_cost))}
+    ${tile(B.per_unit ? usd(B.per_unit.est_cost) : "n/a", "Inline, per " + esc(c.cohorts[0].unit_label), `${B.units} units over ${B.cohorts} cohorts`)}
+    ${tile(A.per_unit ? fmt(A.per_unit.billed) : "n/a", "Billed tokens / unit (agents)", dl(d.billed))}
+    ${tile(B.per_unit ? fmt(B.per_unit.billed) : "n/a", "Billed tokens / unit (inline)", "")}
+  </div>
+  <div class="card"><h2>Per work unit</h2><div class="sub">Cost basis: ${esc(c.price_basis)}. Billed = fresh + cache read + cache write + output.</div>
+    <table><thead><tr><th></th><th class="num">With agents</th><th class="num">Inline</th><th class="num">Delta</th></tr></thead><tbody>
+    ${row("Model calls", "calls", x => x.toFixed(1))}${row("Output tokens", "output", fmt)}${row("Cache-read tokens", "cache_read", fmt)}${row("Billed tokens", "billed", fmt)}${row("Est. cost", "est_cost", usd)}
+    </tbody></table></div>
+  <div class="card"><h2>Cohorts</h2><div class="scroll"><table><thead><tr><th>Cohort</th><th>Arm</th><th class="num">Units</th><th class="num">Calls</th><th class="num">Subagent calls</th><th class="num">Output</th><th class="num">Cache read</th><th class="num">Est. cost</th><th class="num">Cost / unit</th></tr></thead><tbody>
+    ${c.cohorts.map(x => `<tr><td>${esc(x.label)}</td><td>${esc(x.arm)}</td><td class="num">${x.units}</td><td class="num">${x.total.calls}</td><td class="num">${x.sub.calls}</td><td class="num">${fmt(x.total.output)}</td><td class="num">${fmt(x.total.cache_read)}</td><td class="num">${usd(x.est_cost)}</td><td class="num">${usd(x.est_cost / x.units)}</td></tr>`).join("")}
+    </tbody></table></div></div>
+  <div class="card"><h2>Read this carefully</h2><ul>${c.caveats.map(t => `<li>${esc(t)}</li>`).join("")}</ul></div>`;
+}
+async function overview() {
+  const [ov, sess] = await Promise.all([api("/api/overview" + qs()), api("/api/sessions" + qs())]);
+  if (!sess.length) return `<div class="card empty">${state.period === "all" ? "No sessions in this ledger yet." : "No sessions in " + esc(rangeLabel() || "this range") + ". Try another period or All time."}<br>Run <code>python3 examples/seed_demo.py demo.db</code> or route agent calls through <code>Gateway.call()</code>.</div>`;
+  const tokens = sess.reduce((s, x) => s + x.tokens, 0), cost = sess.reduce((s, x) => s + (x.cost || 0), 0);
+  const tasks = sess.reduce((s, x) => s + x.tasks, 0), ok = sess.reduce((s, x) => s + x.successes, 0);
+  const waste = ov.waste_patterns.filter(w => w.unit === "tokens").reduce((s, w) => s + w.tokens, 0);
+  const exhausted = sess.filter(s => s.terminal_status === "budget_exhausted").length;
+  const agents = Object.entries(ov.agent_metrics), models = Object.entries(ov.model_metrics);
+  return `
+  <div class="kpis">
+    ${tile(int(sess.length), "Sessions", exhausted ? `${exhausted} hit the budget cap` : "none hit the cap")}
+    ${tile(fmt(tokens), "Billed tokens", `${fmt(tokens / sess.length)} per session`)}
+    ${tile(usd(cost), "Estimated cost", sess.some(s => s.unpriced) ? "some calls unpriced" : "")}
+    ${tile(pct(tasks ? ok / tasks : null), "Task success", `${ok}/${tasks} tasks`)}
+    ${tile(pct(tokens ? waste / tokens : null), "Detected waste", "tokens, mutually exclusive categories")}
+  </div>
+  <div class="grid2">
+    <div class="card"><h2>Recurring waste</h2><div class="sub">Tokens by category across all sessions. Hover for the agents and tools responsible.</div>
+      ${ov.waste_patterns.length ? barList(ov.waste_patterns.map(w => ({
+        label: w.category.replaceAll("_", " "), value: w.tokens, extra: w.unit === "cost_only" ? "cost only" : w.confidence,
+        tip: `<div class="h">${esc(w.category)}</div><div class="r"><span>share of all tokens</span><b>${pct(w.pct_of_all_tokens, 1)}</b></div><div class="r"><span>sessions affected</span><b>${w.sessions_affected}</b></div>` +
+          Object.entries(w.by_agent || {}).slice(0, 3).map(([k, v]) => `<div class="r"><span>agent ${esc(k)}</span><b>${fmt(v)}</b></div>`).join("") +
+          Object.entries(w.by_tool || {}).slice(0, 3).map(([k, v]) => `<div class="r"><span>tool ${esc(k)}</span><b>${fmt(v)}</b></div>`).join("")
+      }))) : '<div class="muted">No waste detected.</div>'}</div>
+    <div class="card"><h2>Attention needed</h2><div class="sub">Deterministic flags; each is a lead to check, not a verdict.</div>${alerts(ov)}</div>
+  </div>
+  <div class="card"><h2>Agents</h2><div class="sub">Tokens per success counts failed and retried work too. Compare agents only within the same task type.</div>
+    <div class="scroll">${metricsTable(agents, "Agent")}</div></div>
+  <div class="card"><h2>Models</h2><div class="sub">Grouped by each task's primary model.</div><div class="scroll">${metricsTable(models, "Model")}</div></div>
+  <div class="card"><h2>Recent sessions</h2><div class="sub"><a href="#/sessions">See all</a></div>${sessionsTable(sess.slice(0, 8))}</div>`;
+}
+function alerts(ov) {
+  const items = [];
+  ov.outlier_agents.forEach(o => items.push(`<div class="find"><div class="top"><b>${esc(o.agent_id)}</b><span class="badge warn">outlier</span></div><div class="why">${esc(o.task_type)}: ${fmt(o.tokens_per_success)} tokens/success, ${o.ratio.toFixed(1)}× the peer median (${fmt(o.peer_median)}).</div></div>`));
+  ov.noisy_tools.forEach(t => items.push(`<div class="find"><div class="top"><b>${esc(t.tool)}</b><span class="badge warn">noisy tool</span></div><div class="why">${t.reasons.map(esc).join("; ")} · ${int(t.calls)} calls, ${fmt(t.total_injected)} tokens injected. ${esc(t.suggestion)}.</div></div>`));
+  ov.prompt_regressions.forEach(r => items.push(`<div class="find"><div class="top"><b>${esc(r.agent_id)}</b><span class="badge warn">prompt ${esc(r.from_version)} → ${esc(r.to_version)}</span></div><div class="why">${esc(r.task_type)}: ${r.flags.map(esc).join(", ")}.</div></div>`));
+  ov.iteration_hotspots.forEach(h => items.push(`<div class="find"><div class="top"><b>${esc(h.task_type)}</b><span class="badge warn">iteration hotspot</span></div><div class="why">p50 ${h.iterations_p50} vs p90 ${h.iterations_p90} iterations over ${h.tasks} tasks.</div></div>`));
+  ov.routing_opportunities.forEach(o => items.push(`<div class="find"><div class="top"><b>${esc(o.evidence[0])}</b><span class="badge">routing lead</span></div><div class="why">${esc(o.root_cause)} ${esc(o.details.reason || "")}</div></div>`));
+  return items.length ? items.join("") : '<div class="muted">Nothing flagged.</div>';
+}
+function metricsTable(rows, label) {
+  if (!rows.length) return '<div class="muted">No data.</div>';
+  return `<table><thead><tr><th>${label}</th><th class="num">Tasks</th><th class="num">Success</th><th class="num">Tokens / task</th><th class="num">Tokens / success</th><th class="num">Cost / success</th><th class="num">In:out</th><th class="num">Iter</th><th class="num">Retry</th><th class="num">Ctx growth / iter</th><th class="num">Cache hit</th><th class="num">Quality</th><th class="num" title="mean quality × success rate ÷ median cost per task">Quality per $</th></tr></thead><tbody>` +
+    rows.map(([k, m]) => { const q = Object.values((m.quality || {}).by_method || {})[0];
+      return `<tr><td><b>${esc(k)}</b></td><td class="num">${m.tasks}</td><td class="num">${pct(m.success_rate)}</td><td class="num">${fmt(m.avg_tokens_per_task)}</td><td class="num">${fmt(m.tokens_per_successful_task)}</td><td class="num">${usd(m.cost_per_successful_task)}</td><td class="num">${m.input_output_ratio ? m.input_output_ratio.toFixed(1) : "–"}</td><td class="num">${m.avg_iterations ? m.avg_iterations.toFixed(1) : "–"}</td><td class="num">${pct(m.retry_rate, 1)}</td><td class="num">${fmt(m.context_growth_tokens_per_iteration)}</td><td class="num">${pct(m.cache_hit_ratio)}</td><td class="num">${q ? q.mean.toFixed(2) : "–"}</td><td class="num">${m.quality_adjusted_efficiency == null ? "–" : m.qa_unit === "per_token" ? (m.quality_adjusted_efficiency * 1e6).toFixed(1) + " /Mtok" : m.quality_adjusted_efficiency.toFixed(1)}</td></tr>`; }).join("") + `</tbody></table>`;
+}
+
+// ---------------------------------------------------------------- sessions list
+function sessionsTable(rows) {
+  return `<div class="scroll"><table><thead><tr>${[["session_id", "Session"], ["started_at", "Started"], ["terminal_status", "Status"], ["tokens", "Tokens", 1], ["budget_fraction", "Budget", 1], ["cost", "Cost", 1], ["iterations", "Iter", 1], ["tool_calls", "Tools", 1], ["successes", "Success", 1], ["quality", "Quality", 1]]
+    .map(([k, l, n]) => `<th class="s ${n ? "num" : ""}" data-sort="${k}">${l}${state.sort.key === k ? (state.sort.dir > 0 ? " ▲" : " ▼") : ""}</th>`).join("")}<th>Models</th></tr></thead><tbody>` +
+    rows.map(s => `<tr class="click" data-go="${esc(s.session_id)}"><td><b>${esc(s.session_id)}</b><div class="muted" style="font-size:11px">${esc(s.root_task || "")}</div></td><td>${when(s.started_at)}</td><td>${statusBadge(s.terminal_status)}</td><td class="num">${int(s.tokens)}</td><td class="num">${pct(s.budget_fraction)}</td><td class="num">${usd(s.cost)}</td><td class="num">${s.iterations}</td><td class="num">${s.tool_calls}</td><td class="num">${s.successes}/${s.tasks}</td><td class="num">${s.quality != null ? s.quality.toFixed(2) : "–"}</td><td class="muted">${s.models.map(esc).join(", ")}</td></tr>`).join("") + `</tbody></table></div>`;
+}
+async function sessions() {
+  const rows = await api("/api/sessions" + qs());
+  const { key, dir } = state.sort;
+  rows.sort((a, b) => ((a[key] ?? -Infinity) > (b[key] ?? -Infinity) ? 1 : -1) * dir);
+  return `<div class="card"><h2>Sessions</h2><div class="sub">${rows.length} root sessions (subagents roll up into their parent). Click a row for its full trajectory.</div>${rows.length ? sessionsTable(rows) : '<div class="muted">None yet.</div>'}</div>`;
+}
+
+// ---------------------------------------------------------------- session detail
+async function sessionView(id) {
+  const d = await api("/api/session/" + encodeURIComponent(id));
+  const r = d.report, s = r.summary, b = d.budget, steps = d.steps, sv = r.estimated_savings;
+  const limit = b ? b.budget_limit : null;
+  const q = Object.entries(s.quality.by_method).map(([m, v]) => `${m} ${v.mean.toFixed(2)}`).join(", ") || "–";
+  const gauge = b ? `<div class="gauge" data-tip="${int(b.used)} of ${int(limit)} tokens used (${b.basis} basis)"><i style="width:${Math.min(b.used / limit, 1) * 100}%"></i>${[.6, .8, .9].map(t => `<u style="left:${t * 100}%"></u><b style="left:${t * 100}%">${t * 100}%</b>`).join("")}</div><div class="sec">${int(b.used)} / ${int(limit)} tokens (${pct(b.used / limit)}) · finalization reserve ${int(b.finalization_reserve)}</div>` : "";
+  const points = steps.map((st, i) => ({ x: "#" + (i + 1), y: st.cumulative, tip: `<div class="h">call ${i + 1} · ${esc(st.call.model_id)}</div><div class="r"><span>iteration</span><b>${st.call.iteration}</b></div><div class="r"><span>this call</span><b>${int(st.billed)}</b></div><div class="r"><span>cumulative</span><b>${int(st.cumulative)}</b></div><div class="r"><span>status</span><b>${esc(st.call.status)}</b></div>` }));
+  const hl = limit ? [{ y: limit, label: "100% stop", color: "var(--crit)", solid: true }, { y: limit * .9, label: "90% critical" }, { y: limit * .8, label: "80% high" }, { y: limit * .6, label: "60% warn" }] : [];
+  const kindsUsed = KINDS.filter(k => steps.some(st => st.segments.some(x => x.kind === k)));
+  const series = kindsUsed.map(k => ({ key: k, label: k, color: KIND_COLOR[k], values: steps.map(st => st.segments.filter(x => x.kind === k).reduce((a, x) => a + x.tokens, 0)) }));
+  series.push({ key: "output", label: "output (model)", color: "var(--text-muted)", values: steps.map(st => st.call.output_tokens) });
+  const cats = steps.map((st, i) => `#${i + 1}${st.call.attempt_no > 1 ? "r" : ""}`);
+  const gr = d.growth.filter(g => g.first_input != null && g.iterations.length > 1)[0];
+  const growthNote = gr ? `Input grew from ${fmt(gr.first_input)} to ${fmt(gr.last_input)} tokens (${fmt(gr.slope_tokens_per_iteration)}/iteration), mostly <b>${esc(gr.dominant_growth_kind)}</b>.` : "";
+  const f = r.waste.findings;
+  return `
+  <div class="card"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><h2 style="font-size:17px">${esc(id)}</h2>${statusBadge(s.terminal_status)}<span class="spacer"></span><a href="#/sessions">← all sessions</a></div>
+    <div class="sec">${s.tasks} task(s) · models: ${Object.entries(s.models).map(([m, v]) => `${esc(m)} ×${v.calls}`).join(", ")}</div></div>
+  <div class="kpis">
+    ${tile(int(s.total_billed_tokens), "Billed tokens", `fresh ${fmt(s.input_fresh)} · cache ${fmt(s.cache_read)} · out ${fmt(s.output)}`)}
+    ${tile(usd(s.estimated_cost), "Estimated cost", s.unpriced_calls ? `${s.unpriced_calls} unpriced calls` : "")}
+    ${tile(`${s.successes}/${s.tasks}`, "Tasks succeeded", `quality: ${esc(q)}`)}
+    ${tile(s.iterations, "Iterations", `${s.retries} retries · ${s.blocked_calls} blocked`)}
+    ${tile(s.tool_calls, "Tool calls", `${s.memo_hits} memo hits`)}
+    ${tile(sv.tokens_high ? `${fmt(sv.tokens_low)}–${fmt(sv.tokens_high)}` : "0", "Est. token savings", `${pct(sv.pct_low)}–${pct(sv.pct_high)} of session · risk ${esc(r.quality_risk)}`)}
+  </div>
+  <div class="card"><h2>Budget</h2><div class="sub">Cumulative billed tokens per call against the hard cap and its thresholds.</div>${gauge}${lineChart(points, hl, { limit })}</div>
+  <div class="card"><h2>Where the input context came from</h2><div class="sub">Tokens per model call by source. ${growthNote} "r" marks a retry attempt.</div>${legend([...kindsUsed])}
+    <div class="legend"><span style="--c:var(--text-muted)">output (model)</span></div>${stacked(cats, series)}
+    <details><summary>View as table</summary><div class="scroll"><table><thead><tr><th>Call</th>${series.map(x => `<th class="num">${esc(x.label)}</th>`).join("")}</tr></thead><tbody>${cats.map((c, i) => `<tr><td>${esc(c)}</td>${series.map(x => `<td class="num">${int(x.values[i])}</td>`).join("")}</tr>`).join("")}</tbody></table></div></details></div>
+  <div class="grid2">
+    <div class="card"><h2>Top consumers</h2><div class="sub">Different lenses on the same tokens. They overlap, so do not add them.</div>
+      ${barList(r.top_consumers.slice(0, 8).map(c => ({ label: `${c.name}`, value: c.tokens, extra: `${pct(c.pct_of_session)} · ${c.lens.replace("_", " ")}` })))}</div>
+    <div class="card"><h2>Context accounting</h2><div class="sub">Every input token lands in exactly one bucket.</div>
+      <table><tbody><tr><td>Required context (unclaimed)</td><td class="num">${int(r.waste.required_context_tokens)}</td></tr>
+      <tr><td>Unattributed (provider − estimate)</td><td class="num">${int(r.waste.unattributed_input_tokens)}</td></tr>
+      <tr><td>Estimator drift</td><td class="num">${r.waste.est_error_mean_abs_pct == null ? "–" : pct(r.waste.est_error_mean_abs_pct, 1)}</td></tr>
+      <tr><td>Reference checks (assessed / not assessable)</td><td class="num">${r.waste.coverage.reference_assessed} / ${r.waste.coverage.reference_unassessable}</td></tr></tbody></table>
+      ${r.waste.notes.map(n => `<p class="sec">⚠ ${esc(n)}</p>`).join("")}</div>
+  </div>
+  <div class="card"><h2>Waste findings</h2><div class="sub">Measured findings are exact; heuristic ones are leads. Categories never double count.</div>
+    ${f.length ? f.map(x => `<div class="find"><div class="top"><b>${esc(x.category.replaceAll("_", " "))}</b><span>${x.unit === "cost_only" ? "cost only" : `${int(x.tokens_wasted)} tokens · ${pct(x.pct_of_session, 1)}`}</span><span class="badge">${esc(x.confidence)}</span><span class="badge ${x.quality_risk === "high" ? "bad" : x.quality_risk === "medium" ? "warn" : ""}">risk ${RISK_MARK[x.quality_risk]}</span>
+      ${x.unit === "tokens" ? `<span class="muted">expected −${fmt(x.expected_reduction.low)}–${fmt(x.expected_reduction.high)}</span>` : ""}</div>
+      <div class="why"><b>Cause:</b> ${esc(x.root_cause)}<br><b>Fix:</b> ${esc(x.recommendation)}<br><b>Quality impact:</b> ${esc(x.quality_risk_note)}</div>
+      <details><summary>Evidence (${x.evidence_count})</summary><pre>${esc(x.evidence.join("\n"))}${x.evidence_count > x.evidence.length ? "\n…" : ""}</pre></details></div>`).join("") : '<div class="muted">No waste detected.</div>'}</div>
+  <div class="card"><h2>Call trajectory</h2><div class="sub">Every model call in order. Expand a row for its context segments and tool calls.</div><div class="scroll">${trajectory(steps)}</div></div>
+  ${r.routing.length ? `<div class="card"><h2>Model routing</h2><div class="sub">Why each model was chosen and whether evidence supports a cheaper one. Cheaper is never a reason on its own.</div>${routingTable(r.routing)}</div>` : ""}
+  <div class="card"><h2>Text report</h2><details><summary>Show</summary><pre>${esc(d.text)}</pre></details></div>`;
+}
+function trajectory(steps) {
+  return `<table><thead><tr><th>#</th><th>Iter</th><th>Model</th><th>Status</th><th class="num">Fresh in</th><th class="num">Cache read</th><th class="num">Cache write</th><th class="num">Output</th><th class="num">Reasoning</th><th class="num">Tools</th><th class="num">Latency</th><th class="num">Cum. budget</th><th>Stop</th></tr></thead><tbody>` +
+    steps.map((st, i) => { const c = st.call; return `<tr><td><b>${i + 1}</b>${c.attempt_no > 1 ? ` <span class="badge">retry ${c.attempt_no}</span>` : ""}</td><td>${c.iteration}</td><td>${esc(c.model_id)}</td><td>${c.status === "success" ? "ok" : `<span class="badge bad">${esc(c.status)}${c.error_class ? ": " + esc(c.error_class) : ""}</span>`}</td><td class="num">${int(c.input_fresh)}</td><td class="num">${int(c.cache_read)}</td><td class="num">${int(c.cache_write)}</td><td class="num">${int(c.output_tokens)}</td><td class="num">${int(c.reasoning_tokens)}</td><td class="num">${st.tool_calls.length}</td><td class="num">${c.latency_ms != null ? Math.round(c.latency_ms) + " ms" : "–"}</td><td class="num">${int(st.cumulative)}</td><td class="muted">${esc(c.stop_reason || "")}</td></tr>
+    ${st.segments.length || st.tool_calls.length ? `<tr><td></td><td colspan="12"><details><summary>${st.segments.length} segments · ${st.tool_calls.length} tool call(s)</summary>
+      <div class="scroll"><table><thead><tr><th>Kind</th><th class="num">Tokens</th><th>Origin</th><th class="num">Age</th><th>Ref</th></tr></thead><tbody>${st.segments.map(x => `<tr><td><span class="legend" style="display:inline"><span style="--c:${KIND_COLOR[x.kind]}">${x.kind}</span></span></td><td class="num">${int(x.tokens)}</td><td class="muted">${x.origin_call_id === c.call_id ? "this call" : esc((x.origin_call_id || "").slice(0, 8))}</td><td class="num">${x.age_iterations}</td><td class="muted">${esc((x.source_ref || "").slice(0, 10))}${x.was_truncated ? " (truncated)" : ""}</td></tr>`).join("")}</tbody></table></div>
+      ${st.tool_calls.length ? `<table><thead><tr><th>Tool</th><th>Status</th><th class="num">Raw out</th><th class="num">Injected</th><th>Used later?</th></tr></thead><tbody>${st.tool_calls.map(t => `<tr><td>${esc(t.tool_name)}</td><td>${esc(t.status)}</td><td class="num">${int(t.raw_output_tokens)}</td><td class="num">${int(t.injected_tokens)}</td><td>${t.later_referenced == null ? '<span class="muted">not assessable</span>' : t.later_referenced ? "yes" : '<span class="badge warn">no</span>'}</td></tr>`).join("")}</tbody></table>` : ""}</details></td></tr>` : ""}`; }).join("") + `</tbody></table>`;
+}
+function routingTable(rows) {
+  return `<table><thead><tr><th>Task</th><th>Type</th><th>Chosen</th><th>Reason</th><th>Assessment</th><th class="num">Failure-driven spend</th><th>Cheaper alternatives</th></tr></thead><tbody>` + rows.map(r =>
+    `<tr><td>${esc(r.task_id)}</td><td>${esc(r.task_type)} / ${esc(r.complexity)}</td><td>${esc(r.chosen)}</td><td>${esc(r.reason_code || "–")}</td><td><span class="badge ${r.appropriateness.startsWith("under") ? "warn" : ""}">${esc(r.appropriateness.replaceAll("_", " "))}</span></td><td class="num">${int(r.failure_driven_spend_tokens)}</td><td>${r.cheaper_alternatives.map(a => `${esc(a.alternative)}: <span class="badge">${esc(a.verdict.replaceAll("_", " "))}</span>`).join("<br>") || "–"}</td></tr>`).join("") + `</tbody></table>`;
+}
+
+// ---------------------------------------------------------------- router
+async function render() {
+  const h = location.hash || "#/", app = $("#app");
+  $("#nav-over").classList.toggle("on", h === "#/" || h === "");
+  $("#nav-sess").classList.toggle("on", h.startsWith("#/sess"));
+  $("#nav-cmp").classList.toggle("on", h.startsWith("#/compare"));
+  try {
+    let html;
+    if (h.startsWith("#/session/")) html = await sessionView(decodeURIComponent(h.slice(10)));
+    else if (h.startsWith("#/sessions")) html = await sessions();
+    else if (h.startsWith("#/compare")) html = await compareView();
+    else html = await overview();
+    app.innerHTML = html;
+    bindTips(app);
+    app.querySelectorAll("[data-go]").forEach(tr => tr.onclick = () => location.hash = "#/session/" + encodeURIComponent(tr.dataset.go));
+    app.querySelectorAll("th[data-sort]").forEach(th => th.onclick = () => { const k = th.dataset.sort; state.sort = { key: k, dir: state.sort.key === k ? -state.sort.dir : -1 }; render(); });
+  } catch (e) { app.innerHTML = `<div class="card empty">Could not load data: ${esc(e.message)}</div>`; }
+}
+addEventListener("hashchange", render);
+$("#live").onchange = e => { clearInterval(state.timer); if (e.target.checked) state.timer = setInterval(() => { if (!document.hidden) { const y = scrollY; render().then(() => scrollTo(0, y)); } }, 5000); };
+const themes = ["auto", "light", "dark"];
+function applyTheme(t) { try { localStorage.setItem("theme", t); } catch (e) { } if (t === "auto") document.documentElement.removeAttribute("data-theme"); else document.documentElement.setAttribute("data-theme", t); $("#theme").textContent = "Theme: " + t; }
+$("#theme").onclick = () => applyTheme(themes[(themes.indexOf($("#theme").textContent.slice(7)) + 1) % 3]);
+let saved = "auto"; try { saved = localStorage.getItem("theme") || "auto"; } catch (e) { }
+applyTheme(saved); syncRangeUi(); render();
+</script>
+</body>
+</html>
