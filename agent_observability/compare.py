@@ -100,3 +100,39 @@ def compare(ledger: Ledger, db_path: Optional[str] = None) -> dict:
                 caveats=["Different work units, not the same work run twice: size/difficulty differ.",
                          "Cache-read tokens dominate billed volume; long single-thread sessions re-read a growing context every call.",
                          "Token counts are measured from provider usage; cost is only as accurate as the price basis above."])
+
+
+def tag_custom_agents(ledger: Ledger, agent_names: set[str], since: float, min_calls: int = 5) -> dict:
+    """Auto-cohorts per project: 'with_agents' = root sessions started at/after `since` that ran one of YOUR agents
+    (built-in Explore etc. do not count); 'inline' = root sessions in the same window with no subagents at all.
+    One root session = one unit. Only projects present in both arms are tagged. Replaces earlier auto cohorts."""
+    ensure(ledger)
+    ledger.execute("DELETE FROM cohort_sessions WHERE cohort_id IN (SELECT cohort_id FROM cohorts WHERE note LIKE 'auto%')")
+    ledger.execute("DELETE FROM cohorts WHERE note LIKE 'auto%'")
+    names = ",".join("?" * len(agent_names)) or "NULL"
+    rows = ledger.query(f"""
+        SELECT r.session_id sid, REPLACE(r.root_task,' · claude-vscode','') proj,
+          (SELECT COUNT(*) FROM sessions s JOIN model_calls m ON m.session_id=s.session_id
+             WHERE s.parent_session_id=r.session_id AND m.agent_id IN ({names})) custom,
+          (SELECT COUNT(*) FROM sessions s WHERE s.parent_session_id=r.session_id) subs,
+          (SELECT COUNT(*) FROM model_calls m WHERE m.session_id=r.session_id OR m.session_id IN
+             (SELECT session_id FROM sessions WHERE parent_session_id=r.session_id)) calls
+        FROM sessions r WHERE r.parent_session_id IS NULL AND r.started_at>=? AND COALESCE(r.root_task,'') NOT LIKE '%subagent%'""",
+        [*sorted(agent_names), since])
+    by: dict[str, dict[str, list[str]]] = {}
+    for r in rows:
+        if r["calls"] < min_calls:
+            continue
+        arm = "with_agents" if r["custom"] else "inline" if not r["subs"] else None
+        if arm:
+            by.setdefault(r["proj"], {}).setdefault(arm, []).append(r["sid"])
+    tagged = {}
+    for proj, d in by.items():
+        if len(d) == 2:
+            for arm, ids in d.items():
+                tag(ledger, f"{proj}:{arm}", arm, f"{proj} ({arm})", len(ids), ids, "session",
+                    "auto: custom agents only; 1 root session = 1 unit")
+                tagged[f"{proj}:{arm}"] = len(ids)
+    counts = {a: sum(1 for r in rows if r["calls"] >= min_calls and (r["custom"] if a == "with_agents" else not r["subs"]))
+              for a in ARMS}
+    return dict(tagged=tagged, sessions_with_your_agents=counts["with_agents"], inline_sessions=counts["inline"])

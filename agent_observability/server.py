@@ -120,6 +120,9 @@ class Api:
         if parts == ["api", "compare"]:
             from .compare import compare
             return self._cached("compare", lambda: compare(self.ledger, self.db_path))
+        if parts == ["api", "optimizations"]:
+            from .optimizations import report
+            return self._cached("optimizations", lambda: report(self.ledger, self.db_path))
         if parts == ["api", "overview"]:
             return self.overview(*self.window(query))
         if len(parts) == 3 and parts[:2] == ["api", "session"]:

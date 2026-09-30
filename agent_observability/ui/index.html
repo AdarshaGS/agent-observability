@@ -96,7 +96,7 @@ pre { background: var(--surface-2); padding: 10px; border-radius: 8px; overflow:
 <body>
 <header>
   <h1>Token Observatory</h1>
-  <nav><a href="#/" id="nav-over">Overview</a><a href="#/sessions" id="nav-sess">Sessions</a><a href="#/compare" id="nav-cmp">Compare</a></nav>
+  <nav><a href="#/" id="nav-over">Overview</a><a href="#/sessions" id="nav-sess">Sessions</a><a href="#/compare" id="nav-cmp">Compare</a><a href="#/optimizations" id="nav-opt">Before vs After</a></nav>
   <span class="spacer"></span>
   <div id="range" role="group" aria-label="Date filter">
     <select id="period" aria-label="Period"><option value="all">All time</option><option value="day">Day</option><option value="week">Week</option><option value="month">Month</option><option value="custom">Custom</option></select>
@@ -287,6 +287,28 @@ async function compareView() {
     </tbody></table></div></div>
   <div class="card"><h2>Read this carefully</h2><ul>${c.caveats.map(t => `<li>${esc(t)}</li>`).join("")}</ul></div>`;
 }
+const VERDICTS = {
+  improvement: ["ok", "Improvement"], quality_regression: ["bad", "Tokens down, quality/success down"], worse: ["bad", "Worse"],
+  no_change: ["", "No measurable change"], inconclusive: ["warn", "Inconclusive"], unverified: ["warn", "Unverified"] };
+async function optView() {
+  const r = await api("/api/optimizations");
+  if (!r.optimizations.length) return `<div class="card empty">No optimizations recorded yet. Run <code>python3 -m agent_observability opt-add --db ledger.db --id ID --name TEXT --baseline SESSION... --after SESSION...</code>.</div>`;
+  const dl = v => v == null ? "–" : (v > 0 ? "+" : "") + (v * 100).toFixed(0) + "%";
+  const pp = v => v == null ? "–" : (v > 0 ? "+" : "") + (v * 100).toFixed(1) + " pt";
+  const rows = [["Tokens / task", "tokens_per_task", fmt], ["Input tokens", "input_tokens", fmt], ["Output tokens", "output_tokens", fmt],
+    ["Cache hit rate", "cache_hit_rate", x => pct(x, 1)], ["Tool-result tokens", "tool_result_tokens", fmt],
+    ["Iterations", "iterations", x => x == null ? "–" : x.toFixed(1)], ["Tool calls", "tool_calls", x => x == null ? "–" : x.toFixed(1)], ["Cost / task", "cost", usd]];
+  return r.optimizations.map(o => {
+    const [cls, label] = VERDICTS[o.verdict] || ["", o.verdict], A = o.baseline, B = o.after;
+    const q = Object.keys(A.quality).concat(Object.keys(B.quality).filter(m => !(m in A.quality)));
+    return `<div class="card"><h2>${esc(o.name)} <span class="badge ${cls}">${esc(label)}</span></h2>
+    <div class="sub">${esc(o.description || "")} Confidence: <b>${esc(o.confidence)}</b>. ${esc(o.reason)}. Token reduction: <b>${o.token_reduction == null ? "–" : pct(o.token_reduction, 0)}</b> · Tasks: ${A.tasks} baseline / ${B.tasks} after · Cost basis: ${esc(r.price_basis)}</div>
+    <table><thead><tr><th></th><th class="num">Baseline</th><th class="num">After</th><th class="num">Change</th></tr></thead><tbody>
+    ${rows.map(([l, k, f]) => `<tr><td>${l}</td><td class="num">${f(A[k])}</td><td class="num">${f(B[k])}</td><td class="num">${k === "cache_hit_rate" ? (A[k] == null || B[k] == null ? "–" : pp(B[k] - A[k])) : dl(o.deltas[k])}</td></tr>`).join("")}
+    <tr><td>Success rate</td><td class="num">${pct(A.success_rate, 0)}</td><td class="num">${pct(B.success_rate, 0)}</td><td class="num">${pp(o.success_change)}</td></tr>
+    ${q.map(m => `<tr><td>Quality (${esc(m)})</td><td class="num">${A.quality[m] ? A.quality[m].mean.toFixed(2) + " (n=" + A.quality[m].n + ")" : "–"}</td><td class="num">${B.quality[m] ? B.quality[m].mean.toFixed(2) + " (n=" + B.quality[m].n + ")" : "–"}</td><td class="num">${m in o.quality_change ? (o.quality_change[m] > 0 ? "+" : "") + o.quality_change[m].toFixed(2) : "not comparable"}</td></tr>`).join("") || `<tr><td>Quality</td><td class="num" colspan="3">no evals recorded</td></tr>`}
+    </tbody></table></div>`; }).join("") + `<div class="card"><h2>Read this carefully</h2><ul>${r.caveats.map(t => `<li>${esc(t)}</li>`).join("")}</ul></div>`;
+}
 async function overview() {
   const [ov, sess] = await Promise.all([api("/api/overview" + qs()), api("/api/sessions" + qs())]);
   if (!sess.length) return `<div class="card empty">${state.period === "all" ? "No sessions in this ledger yet." : "No sessions in " + esc(rangeLabel() || "this range") + ". Try another period or All time."}<br>Run <code>python3 examples/seed_demo.py demo.db</code> or route agent calls through <code>Gateway.call()</code>.</div>`;
@@ -415,10 +437,12 @@ async function render() {
   $("#nav-over").classList.toggle("on", h === "#/" || h === "");
   $("#nav-sess").classList.toggle("on", h.startsWith("#/sess"));
   $("#nav-cmp").classList.toggle("on", h.startsWith("#/compare"));
+  $("#nav-opt").classList.toggle("on", h.startsWith("#/opt"));
   try {
     let html;
     if (h.startsWith("#/session/")) html = await sessionView(decodeURIComponent(h.slice(10)));
     else if (h.startsWith("#/sessions")) html = await sessions();
+    else if (h.startsWith("#/opt")) html = await optView();
     else if (h.startsWith("#/compare")) html = await compareView();
     else html = await overview();
     app.innerHTML = html;

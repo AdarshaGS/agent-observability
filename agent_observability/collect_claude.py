@@ -132,6 +132,12 @@ class ClaudeCodeCollector:
         if parent and not self.ing._session_exists(parent):
             parent = None
         project = os.path.basename(t["cwd"] or "") or path.parent.name
+        agent = "claude-code"
+        if is_sub:                                        # agent-X.jsonl has agent-X.meta.json with the agent's name
+            try:
+                agent = json.loads(path.with_suffix(".meta.json").read_text()).get("agentType") or "subagent"
+            except (OSError, ValueError):
+                agent = "subagent"
         events = [dict(type="session_start", session_id=sid, parent_session_id=parent, ts=t["first_ts"] or st.st_mtime,
                        root_task=f"{project} · {t['entrypoint'] or 'claude-code'}" + (" · subagent" if is_sub else ""),
                        **({"budget": dict(limit=self.budget.limit, finalization_reserve=self.budget.finalization_reserve,
@@ -144,7 +150,7 @@ class ClaudeCodeCollector:
                 continue
             u["reasoning"] = min(u.get("reasoning", 0), u.get("output", 0))
             if m["id"] not in known:
-                events.append(dict(type="model_call", call_id=m["id"], session_id=sid, agent_id="subagent" if is_sub else "claude-code",
+                events.append(dict(type="model_call", call_id=m["id"], session_id=sid, agent_id=agent,
                                    model_id=m["model"], iteration=i, ts=m["ts"], usage=u, stop_reason=m["stop"],
                                    provider="anthropic", tool_call_count=len(m["tools"])))
             for tool in m["tools"]:

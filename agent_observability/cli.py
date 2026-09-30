@@ -48,8 +48,27 @@ def main(argv=None) -> int:
     ct.add_argument("--unit-label", default="issue")
     ct.add_argument("--note")
     ct.add_argument("--sessions", nargs="+", required=True, help="root session ids or unique prefixes")
+    ca = sub.add_parser("compare-auto", help="auto-tag cohorts using only YOUR custom agents (~/.claude/agents/*.md) since a time")
+    ca.add_argument("--db", required=True)
+    ca.add_argument("--since", required=True, help="local time your agents went live, e.g. '2026-09-29 11:20'")
+    ca.add_argument("--agents-dir", default="~/.claude/agents")
     cs = sub.add_parser("compare", help="print the with-agents vs inline comparison as JSON")
     cs.add_argument("--db", required=True)
+    oa = sub.add_parser("opt-add", help="record an optimization with its baseline and after root sessions")
+    oa.add_argument("--db", required=True)
+    oa.add_argument("--id", required=True)
+    oa.add_argument("--name", required=True)
+    oa.add_argument("--desc")
+    oa.add_argument("--baseline", nargs="+", required=True, help="root session ids or unique prefixes")
+    oa.add_argument("--after", nargs="+", required=True)
+    orp = sub.add_parser("opt-report", help="print before-vs-after results for all optimizations as JSON")
+    orp.add_argument("--db", required=True)
+    rt = sub.add_parser("rate", help="mark a collected session as success/failure with an optional 0-1 quality score")
+    rt.add_argument("--db", required=True)
+    rt.add_argument("--session", required=True, help="root session id or unique prefix")
+    rt.add_argument("--outcome", required=True, choices=("success", "failure", "partial"))
+    rt.add_argument("--score", type=float, help="quality 0..1 (e.g. 1 = fully correct)")
+    rt.add_argument("--method", default="human", choices=("test", "assertion", "human", "user_signal"))
     sub.add_parser("token", help="print a fresh random token")
     a = p.parse_args(argv)
     if a.cmd == "token":
@@ -80,6 +99,39 @@ def main(argv=None) -> int:
                 return 2
             ids.append(rows[0]["session_id"])
         print(json.dumps(tag(led, a.cohort, a.arm, a.label, a.units, ids, a.unit_label, a.note)))
+        return 0
+    if a.cmd == "opt-add":
+        from .optimizations import add
+        groups = []
+        for arm in (a.baseline, a.after):
+            ids = []
+            for s in arm:
+                rows = led.query("SELECT session_id FROM sessions WHERE session_id LIKE ? AND parent_session_id IS NULL", (s + "%",))
+                if len(rows) != 1:
+                    print(f"error: {s!r} matches {len(rows)} root sessions", file=sys.stderr)
+                    return 2
+                ids.append(rows[0]["session_id"])
+            groups.append(ids)
+        print(json.dumps(add(led, a.id, a.name, groups[0], groups[1], a.desc)))
+        return 0
+    if a.cmd == "rate":
+        from .optimizations import rate
+        rows = led.query("SELECT session_id FROM sessions WHERE session_id LIKE ? AND parent_session_id IS NULL", (a.session + "%",))
+        if len(rows) != 1:
+            print(f"error: {a.session!r} matches {len(rows)} root sessions", file=sys.stderr)
+            return 2
+        print(json.dumps(rate(led, rows[0]["session_id"], a.outcome, a.score, a.method)))
+        return 0
+    if a.cmd == "opt-report":
+        from .optimizations import report
+        print(json.dumps(report(led, a.db), indent=2, default=str))
+        return 0
+    if a.cmd == "compare-auto":
+        from datetime import datetime
+        from pathlib import Path
+        from .compare import tag_custom_agents
+        names = {f.stem for f in Path(a.agents_dir).expanduser().glob("*.md")}
+        print(json.dumps(dict(agents=sorted(names), **tag_custom_agents(led, names, datetime.fromisoformat(a.since).timestamp())), indent=2))
         return 0
     if a.cmd == "compare":
         from .compare import compare
