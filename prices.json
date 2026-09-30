@@ -1,0 +1,29 @@
+{
+ "version": "2026-09-25-list",
+ "models": {
+  "claude-opus-5-5": {
+   "input": 4.0,
+   "output": 20.0,
+   "cache_read": 0.2,
+   "cache_write": 5.0
+  },
+  "claude-sonnet-5-5": {
+   "input": 2.0,
+   "output": 10.0,
+   "cache_read": 0.2,
+   "cache_write": 2.5
+  },
+  "claude-sonnet-5": {
+   "input": 2.0,
+   "output": 10.0,
+   "cache_read": 0.2,
+   "cache_write": 2.5
+  },
+  "claude-haiku-4-5-20251001": {
+   "input": 1.0,
+   "output": 5.0,
+   "cache_read": 0.1,
+   "cache_write": 1.25
+  }
+ }
+}

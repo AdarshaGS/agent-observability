@@ -24,6 +24,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from .aggregate import aggregate
 from .auth import Auth, check_bind_security
+from .pricing import PriceTable
 from .ingest import IngestError, Ingestor, MAX_BATCH
 from .ledger import Ledger
 from .metrics import context_growth, session_summary
@@ -38,7 +39,8 @@ class Api:
     def __init__(self, ledger: Ledger, db_path: str = None):
         self.ledger = ledger
         self.db_path = db_path
-        self.ingestor = Ingestor(ledger)
+        prices = Path(db_path).with_name("prices.json") if db_path else None
+        self.ingestor = Ingestor(ledger, pricing=PriceTable.from_json(str(prices)) if prices and prices.exists() else None)
         self._cache: dict[str, tuple[float, object]] = {}
         self._lock = threading.Lock()
 
@@ -242,7 +244,12 @@ def serve(db: str, host: str = "127.0.0.1", port: int = 8765, open_browser: bool
         first = col.run_once()                                   # backfill before serving, so the first page load has data
         api.invalidate()
         print(f"Collector: {col.root}  lookback {lookback_days}d  first pass: {first}")
-        col.start(collect_interval, on_pass=api.invalidate)
+        from .optimizations import auto_rate
+
+        def after_pass():
+            auto_rate(api.ledger)
+            api.invalidate()
+        col.start(collect_interval, on_pass=after_pass)
     httpd = ThreadingHTTPServer((host, port), make_handler(api, auth))
     url = f"http://{host}:{port}/"
     print(f"Token observability UI: {url}   (ledger: {db}, auth: {'on' if auth.enabled else 'off'})  Ctrl+C to stop")

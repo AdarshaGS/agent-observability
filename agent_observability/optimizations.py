@@ -187,3 +187,32 @@ def report(ledger: Ledger, db_path: Optional[str] = None) -> dict:
                 caveats=["Different tasks in each arm, not the same tasks run twice: mix and difficulty can differ.",
                          "Only 'improvement' means tokens fell with success and quality held; every other label is weaker.",
                          "Quality is compared per method, never pooled; no shared quality method means 'unverified'."])
+
+
+_PROXY_SKIP = ("ExitPlanMode", "AskUserQuestion")     # user declining / answering, not failures
+
+
+def auto_rate(ledger: Ledger, min_tools: int = 5) -> int:
+    """Weak proxy rating for unrated root sessions: score = 1 - tool error rate over the session tree.
+    Stored as method 'user_signal' (weakest tier); re-scored while it is still the only rating, never overwrites
+    a rating made by hand. Bash errors are often normal exploration, so this only catches badly broken sessions."""
+    done = 0
+    for r in ledger.query("SELECT session_id FROM sessions WHERE parent_session_id IS NULL"):
+        sid = r["session_id"]
+        if ledger.one("SELECT 1 FROM quality_evals WHERE task_id=? AND method<>'user_signal'", (RATING + sid,)) or \
+           (ledger.one("SELECT 1 FROM tasks WHERE task_id=?", (RATING + sid,)) and
+                not ledger.one("SELECT 1 FROM quality_evals WHERE task_id=?", (RATING + sid,))):
+            continue
+        ids = ledger.tree_ids(sid)
+        row = ledger.one(f"SELECT count(*) n, coalesce(sum(status='error'),0) e FROM tool_calls WHERE session_id IN "
+                         f"({','.join('?' * len(ids))}) AND tool_name NOT IN ({','.join('?' * len(_PROXY_SKIP))})",
+                         (*ids, *_PROXY_SKIP))
+        if row["n"] < min_tools:
+            continue
+        score = round(1 - row["e"] / row["n"], 3)
+        cur = ledger.one("SELECT score FROM quality_evals WHERE task_id=?", (RATING + sid,))
+        if cur and abs(cur["score"] - score) < 1e-9:
+            continue
+        rate(ledger, sid, "success" if score >= .85 else "partial" if score >= .6 else "failure", score, "user_signal")
+        done += 1
+    return done

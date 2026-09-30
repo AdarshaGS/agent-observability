@@ -1,8 +1,30 @@
 import unittest
 
-from agent_observability.optimizations import add, rate, report
+from agent_observability.optimizations import add, auto_rate, rate, report
 from agent_observability.quality import record_eval
 from helpers import Sim, make_gateway
+
+
+class AutoRateTest(unittest.TestCase):
+    def test_proxy_scores_errors_and_never_overwrites_manual(self):
+        led, gw = make_gateway()
+        for sid, bad in (("s1", 1), ("s2", 0)):
+            sim = Sim(gw, session=sid, task="T" + sid)
+            r = sim.step(out_tokens=10)
+            for i in range(6):
+                led.insert("tool_calls", dict(tool_call_id=f"{sid}t{i}", call_id=led.one(
+                    "SELECT call_id FROM model_calls WHERE session_id=? LIMIT 1", (sid,))["call_id"], session_id=sid,
+                    tool_name="Bash", status="error" if i < bad else "ok"))
+        self.assertEqual(auto_rate(led), 2)
+        sc = {r["session_id"]: r["score"] for r in led.query("SELECT session_id, score FROM quality_evals")}
+        self.assertAlmostEqual(sc["s1"], 1 - 1 / 6, places=3)
+        self.assertEqual(sc["s2"], 1.0)
+        self.assertEqual(auto_rate(led), 0)                       # idempotent
+        rate(led, "s1", "failure", 0.1, "human")
+        led.insert("tool_calls", dict(tool_call_id="x", call_id=led.one("SELECT call_id FROM model_calls WHERE session_id='s1'")["call_id"],
+                                      session_id="s1", tool_name="Bash", status="ok"))
+        auto_rate(led)
+        self.assertEqual(led.one("SELECT score FROM quality_evals WHERE session_id='s1'")["score"], 0.1)
 
 
 class OptimizationTest(unittest.TestCase):

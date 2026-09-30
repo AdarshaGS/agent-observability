@@ -29,7 +29,7 @@ try:
     cap = next((v for k, v in CAPS.items() if k in m["model"]), DEFAULT_CAP)
     msg = f"context {ctx // 1000}k / {cap // 1000}k cap ({ctx * 100 // cap}%, {(cap - ctx) // 1000}k left)"
     if ctx > cap:
-        msg += " - OVER CAP: save a handoff note, start a fresh session"
+        msg += " - OVER CAP: auto-compact (CLAUDE_CODE_AUTO_COMPACT_WINDOW=300000) should have fired; run /compact"
     elif ctx >= WARN_AT:
         msg += " - getting heavy: finish this piece, then hand off to a fresh session"
     print(json.dumps({"systemMessage": msg}))

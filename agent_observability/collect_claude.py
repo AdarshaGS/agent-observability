@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Optional
 
 from .budget import BudgetConfig
-from .ingest import Ingestor
+from .ingest import MAX_BATCH, Ingestor
 from .tokens import HeuristicEstimator, content_hash
 
 DEFAULT_ROOT = Path.home() / ".claude" / "projects"
@@ -163,7 +163,10 @@ class ClaudeCodeCollector:
                                    result_hash=r["hash"] if r else None))
         if t["last_ts"] and self.clock() - st.st_mtime > IDLE_SECONDS:
             events.append(dict(type="session_end", session_id=sid, status="completed", ts=t["last_ts"]))
-        for e, r in zip(events, self.ing.handle_batch(events)):
+        results = []
+        for i in range(0, len(events), MAX_BATCH):           # handle_batch refuses >MAX_BATCH; big sessions were silently never collected
+            results += self.ing.handle_batch(events[i:i + MAX_BATCH])
+        for e, r in zip(events, results):
             if r["status"] == "error":
                 stats["errors"] += 1
             elif r["status"] == "ok":
@@ -182,8 +185,8 @@ class ClaudeCodeCollector:
                     stats = self.run_once()
                     if on_pass and stats["files"]:
                         on_pass()
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"collector pass failed: {e!r}", flush=True)
                 self._stop.wait(interval)
         th = threading.Thread(target=loop, name="claude-code-collector", daemon=True)
         th.start()
